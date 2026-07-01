@@ -75,6 +75,10 @@ export interface SaleDto {
   overrideApprovedBy?: string;
   voidedBy?: string;
   voidReason?: string;
+  /** Set only when this sale was created via offline replay and the stock
+   * decrement was forced through past a real stockout (see /sync/push). */
+  needsManagerReview?: boolean;
+  reviewReason?: string;
   createdAt: string;
 }
 

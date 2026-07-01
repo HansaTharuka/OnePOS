@@ -10,3 +10,4 @@ export * from "./inventory";
 export * from "./grn";
 export * from "./sale";
 export * from "./shift";
+export * from "./sync";
