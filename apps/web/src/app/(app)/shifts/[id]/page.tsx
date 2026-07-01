@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Card, CardContent } from "@/components/ui/card";
 import { ManagerPinDialog } from "@/components/manager-pin-dialog";
 import { useCashMovements, useRecordCashMovement, useShift } from "@/lib/queries/shifts";
 import { usePublicSettings } from "@/lib/queries/settings";
@@ -82,81 +83,94 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
     await submitMovement(form.getValues(), pin);
   }
 
-  if (isLoading || !shift) return <p className="text-sm text-zinc-500">Loading…</p>;
+  if (isLoading || !shift) return <p className="text-sm text-slate-500">Loading…</p>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="mb-1 text-2xl font-semibold text-zinc-900">Shift {shift.shiftNo}</h1>
-        <div className="flex items-center gap-2 text-sm text-zinc-500">
+        <h1 className="mb-1 text-2xl font-bold tracking-tight text-slate-900">Shift {shift.shiftNo}</h1>
+        <div className="flex items-center gap-2 text-sm text-slate-500">
           <span>Terminal {shift.terminalId}</span>
-          <Badge variant={shift.status === "open" ? "secondary" : "outline"}>{shift.status}</Badge>
+          <Badge variant={shift.status === "open" ? "info" : "secondary"}>{shift.status}</Badge>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 rounded-lg border border-zinc-200 p-4 text-sm sm:grid-cols-4">
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4 p-5 text-sm sm:grid-cols-4">
         <div>
-          <div className="text-zinc-500">Opening float</div>
-          <div className="font-medium">{formatMoneyCents(shift.openingFloat, currencySymbol)}</div>
+          <div className="text-slate-500">Opening float</div>
+          <div className="tabular-money font-medium text-slate-900">
+            {formatMoneyCents(shift.openingFloat, currencySymbol)}
+          </div>
         </div>
         <div>
-          <div className="text-zinc-500">Expected cash</div>
-          <div className="font-medium">
+          <div className="text-slate-500">Expected cash</div>
+          <div className="tabular-money font-medium text-slate-900">
             {shift.expectedCash !== undefined ? formatMoneyCents(shift.expectedCash, currencySymbol) : "—"}
           </div>
         </div>
         <div>
-          <div className="text-zinc-500">Counted cash</div>
-          <div className="font-medium">
+          <div className="text-slate-500">Counted cash</div>
+          <div className="tabular-money font-medium text-slate-900">
             {shift.closingCountedCash !== undefined
               ? formatMoneyCents(shift.closingCountedCash, currencySymbol)
               : "—"}
           </div>
         </div>
         <div>
-          <div className="text-zinc-500">Variance</div>
-          <div className={`font-medium ${shift.variance ? "text-red-600" : ""}`}>
+          <div className="text-slate-500">Variance</div>
+          <div
+            className={`tabular-money font-medium ${
+              shift.variance ? (shift.variance > 0 ? "text-amber-600" : "text-destructive") : "text-slate-900"
+            }`}
+          >
             {shift.variance !== undefined ? formatMoneyCents(shift.variance, currencySymbol) : "—"}
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <div>
-        <h2 className="mb-2 text-lg font-medium text-zinc-900">Cash drawer movements</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Type</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Recorded</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(movements ?? []).map((movement) => (
-              <TableRow key={movement._id}>
-                <TableCell className="capitalize">{movement.type}</TableCell>
-                <TableCell>{formatMoneyCents(movement.amount, currencySymbol)}</TableCell>
-                <TableCell className="text-zinc-500">{movement.reason ?? "—"}</TableCell>
-                <TableCell className="text-zinc-500">
-                  {new Date(movement.createdAt).toLocaleString()}
-                </TableCell>
-              </TableRow>
-            ))}
-            {(movements ?? []).length === 0 && (
+        <h2 className="mb-3 text-lg font-semibold text-slate-900">Cash drawer movements</h2>
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={4} className="py-6 text-center text-sm text-zinc-500">
-                  No cash movements yet.
-                </TableCell>
+                <TableHead>Type</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Recorded</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {(movements ?? []).map((movement) => (
+                <TableRow key={movement._id}>
+                  <TableCell className="capitalize">{movement.type}</TableCell>
+                  <TableCell className="tabular-money">
+                    {formatMoneyCents(movement.amount, currencySymbol)}
+                  </TableCell>
+                  <TableCell className="text-slate-500">{movement.reason ?? "—"}</TableCell>
+                  <TableCell className="text-slate-500">
+                    {new Date(movement.createdAt).toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(movements ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-10 text-center text-sm text-slate-500">
+                    No cash movements yet.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Card>
       </div>
 
       {shift.status === "open" && (
-        <div className="max-w-md rounded-lg border border-zinc-200 p-4">
-          <h2 className="mb-3 text-sm font-medium text-zinc-900">Record cash movement</h2>
+        <Card className="max-w-md">
+          <CardContent className="p-5">
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">Record cash movement</h2>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
               <FormField
@@ -214,7 +228,8 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
               </Button>
             </form>
           </Form>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <ManagerPinDialog

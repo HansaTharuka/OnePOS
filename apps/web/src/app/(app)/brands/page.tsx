@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBrands, useDeleteBrand, type BrandRecord } from "@/lib/queries/brands";
 import { ApiError } from "@/lib/api/error";
@@ -36,49 +38,57 @@ export default function BrandsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900">Brands</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Brands</h1>
+          <p className="text-sm text-slate-500">Manage the brands your products are sold under.</p>
+        </div>
         <Button onClick={openCreate}>New brand</Button>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-sm text-slate-500">Loading…</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead className="w-32 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(brands ?? []).map((brand) => (
-              <TableRow key={brand._id}>
-                <TableCell className="font-medium">{brand.name}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(brand)}>
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700"
-                    onClick={() => handleDelete(brand)}
-                  >
-                    Delete
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {(brands ?? []).length === 0 && (
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={2} className="py-6 text-center text-sm text-zinc-500">
-                  No brands yet.
-                </TableCell>
+                <TableHead>Name</TableHead>
+                <TableHead className="w-32 text-right">Actions</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {(brands ?? []).map((brand) => (
+                <TableRow key={brand._id}>
+                  <TableCell className="font-medium text-slate-900">{brand.name}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(brand)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                      onClick={() => handleDelete(brand)}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(brands ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={2} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <BadgeCheck className="h-8 w-8" />
+                      <span className="text-sm">No brands yet.</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       <BrandFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />

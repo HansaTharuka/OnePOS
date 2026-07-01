@@ -11,7 +11,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
-  return <thead className={cn("[&_tr]:border-b", className)} {...props} />;
+  return <thead className={cn("bg-slate-50 [&_tr]:border-b [&_tr]:border-slate-200", className)} {...props} />;
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
@@ -20,14 +20,14 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
 
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
-    <tfoot className={cn("border-t bg-zinc-50 font-medium [&>tr]:last:border-b-0", className)} {...props} />
+    <tfoot className={cn("border-t bg-slate-50 font-medium [&>tr]:last:border-b-0", className)} {...props} />
   );
 }
 
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
-      className={cn("border-b border-zinc-200 transition-colors hover:bg-zinc-50", className)}
+      className={cn("border-b border-slate-200 transition-colors hover:bg-indigo-50/40", className)}
       {...props}
     />
   );
@@ -37,7 +37,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium text-zinc-500 [&:has([role=checkbox])]:pr-0",
+        "h-10 px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-slate-500 [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -47,12 +47,12 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
-    <td className={cn("p-2 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
+    <td className={cn("p-3 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
   );
 }
 
 function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
-  return <caption className={cn("mt-4 text-sm text-zinc-500", className)} {...props} />;
+  return <caption className={cn("mt-4 text-sm text-slate-500", className)} {...props} />;
 }
 
 export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };

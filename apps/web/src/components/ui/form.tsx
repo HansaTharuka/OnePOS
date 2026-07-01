@@ -96,7 +96,7 @@ function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
 function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
   const { formDescriptionId } = useFormField();
   return (
-    <p id={formDescriptionId} className={cn("text-sm text-zinc-500", className)} {...props} />
+    <p id={formDescriptionId} className={cn("text-sm text-slate-500", className)} {...props} />
   );
 }
 

@@ -4,10 +4,12 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatMoneyCents } from "@onepos/shared-types";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Minus, Plus, ScanBarcode, ShoppingCart, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useProducts } from "@/lib/queries/products";
 import { usePublicSettings } from "@/lib/queries/settings";
@@ -184,7 +186,7 @@ function PosScreen() {
   }
 
   if (shiftLoading || !terminalId) {
-    return <p className="text-sm text-zinc-500">Loading…</p>;
+    return <p className="text-sm text-slate-500">Loading…</p>;
   }
 
   if (!currentShift) {
@@ -194,9 +196,9 @@ function PosScreen() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">POS Terminal</h1>
-          <p className="text-sm text-zinc-500">Shift {currentShift.shiftNo}</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">POS Terminal</h1>
+          <Badge variant="info">Shift {currentShift.shiftNo}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => router.push("/parked-sales")}>
@@ -210,85 +212,117 @@ function PosScreen() {
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
-          <Input
-            ref={scanInputRef}
-            value={scanValue}
-            onChange={(e) => setScanValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleScanSubmit();
-              } else if (e.key === "Escape") {
-                setScanValue("");
-              }
-            }}
-            placeholder="Scan barcode, type SKU, or qty*sku (e.g. 5*1234), then Enter"
-            className="mb-4 h-12 text-base"
-            autoFocus
-          />
+          <div className="relative mb-4">
+            <ScanBarcode className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-primary" />
+            <Input
+              ref={scanInputRef}
+              value={scanValue}
+              onChange={(e) => setScanValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleScanSubmit();
+                } else if (e.key === "Escape") {
+                  setScanValue("");
+                }
+              }}
+              placeholder="Scan barcode, type SKU, or qty*sku (e.g. 5*1234), then Enter"
+              className="h-14 border-2 border-slate-200 pl-12 text-base shadow-sm focus-visible:border-primary"
+              autoFocus
+            />
+          </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item</TableHead>
-                <TableHead>UOM</TableHead>
-                <TableHead className="w-24">Qty</TableHead>
-                <TableHead>Unit price</TableHead>
-                <TableHead className="w-28">Discount</TableHead>
-                <TableHead>Line total</TableHead>
-                <TableHead className="w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {cart.map((line) => (
-                <TableRow key={line.key}>
-                  <TableCell>
-                    <div className="font-medium">{line.name}</div>
-                    <div className="font-mono text-xs text-zinc-400">{line.sku}</div>
-                  </TableCell>
-                  <TableCell className="text-zinc-500">{line.uom}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="any"
-                      value={line.qty}
-                      onChange={(e) => updateLineQty(line.key, Number(e.target.value))}
-                      className="h-8"
-                    />
-                  </TableCell>
-                  <TableCell>{formatMoneyCents(line.unitPrice, currencySymbol)}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={line.discount / 100}
-                      onChange={(e) => updateLineDiscount(line.key, Number(e.target.value))}
-                      className="h-8"
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {formatMoneyCents(line.unitPrice * line.qty - line.discount, currencySymbol)}
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => removeLine(line.key)}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {cart.length === 0 && (
+          <Card className="overflow-hidden py-0">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-zinc-500">
-                    Scan or search for an item to start a sale.
-                  </TableCell>
+                  <TableHead>Item</TableHead>
+                  <TableHead>UOM</TableHead>
+                  <TableHead className="w-36">Qty</TableHead>
+                  <TableHead>Unit price</TableHead>
+                  <TableHead className="w-28">Discount</TableHead>
+                  <TableHead>Line total</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {cart.map((line) => (
+                  <TableRow key={line.key}>
+                    <TableCell>
+                      <div className="font-medium text-slate-900">{line.name}</div>
+                      <div className="font-mono text-xs text-slate-400">{line.sku}</div>
+                    </TableCell>
+                    <TableCell className="text-slate-500">{line.uom}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => updateLineQty(line.key, line.qty - 1)}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        <Input
+                          type="number"
+                          step="any"
+                          value={line.qty}
+                          onChange={(e) => updateLineQty(line.key, Number(e.target.value))}
+                          className="h-8 w-14 px-1 text-center tabular-money"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => updateLineQty(line.key, line.qty + 1)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="tabular-money">
+                      {formatMoneyCents(line.unitPrice, currencySymbol)}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={line.discount / 100}
+                        onChange={(e) => updateLineDiscount(line.key, Number(e.target.value))}
+                        className="h-8 tabular-money"
+                      />
+                    </TableCell>
+                    <TableCell className="tabular-money font-semibold text-slate-900">
+                      {formatMoneyCents(line.unitPrice * line.qty - line.discount, currencySymbol)}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={() => removeLine(line.key)}>
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {cart.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-16 text-center">
+                      <div className="flex flex-col items-center gap-2 text-slate-400">
+                        <ShoppingCart className="h-8 w-8" />
+                        <span className="text-sm">Scan or search for an item to start a sale.</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
 
-          <div className="mt-4">
-            <h2 className="mb-2 text-sm font-medium text-zinc-500">Browse products</h2>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="mt-6">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Browse products
+            </h2>
+            <div className="grid grid-cols-3 gap-3">
               {(products ?? [])
                 .filter((p) => p.isActive)
                 .slice(0, 12)
@@ -300,10 +334,12 @@ function PosScreen() {
                       key={product._id}
                       type="button"
                       onClick={() => addToCart(product._id, base.uom, 1)}
-                      className="rounded-md border border-zinc-200 p-3 text-left text-sm hover:bg-zinc-50"
+                      className="rounded-lg border border-slate-200 bg-white p-3 text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                     >
-                      <div className="font-medium">{product.name}</div>
-                      <div className="text-zinc-500">{formatMoneyCents(base.sellPrice, currencySymbol)}</div>
+                      <div className="font-medium text-slate-900">{product.name}</div>
+                      <div className="tabular-money text-primary">
+                        {formatMoneyCents(base.sellPrice, currencySymbol)}
+                      </div>
                     </button>
                   );
                 })}
@@ -312,46 +348,63 @@ function PosScreen() {
         </div>
 
         <div className="col-span-1">
-          <div className="rounded-lg border border-zinc-200 p-4">
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Subtotal</span>
-                <span>{formatMoneyCents(totals.subtotal, currencySymbol)}</span>
+          <Card className="sticky top-6 shadow-md">
+            <CardContent className="p-5">
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Subtotal</span>
+                  <span className="tabular-money">{formatMoneyCents(totals.subtotal, currencySymbol)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tax</span>
+                  <span className="tabular-money">{formatMoneyCents(totals.taxTotal, currencySymbol)}</span>
+                </div>
+                <div className="flex items-baseline justify-between border-t border-slate-100 pt-2">
+                  <span className="text-base font-semibold text-slate-900">Total</span>
+                  <span className="tabular-money text-3xl font-bold text-slate-900">
+                    {formatMoneyCents(totals.grandTotal, currencySymbol)}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Tax</span>
-                <span>{formatMoneyCents(totals.taxTotal, currencySymbol)}</span>
-              </div>
-              <div className="flex justify-between text-lg font-semibold">
-                <span>Total</span>
-                <span>{formatMoneyCents(totals.grandTotal, currencySymbol)}</span>
-              </div>
-            </div>
 
-            <div className="mt-4 flex flex-col gap-2">
-              <Button size="lg" disabled={cart.length === 0} onClick={() => setCheckoutOpen(true)}>
-                Pay (F2)
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                disabled={cart.length === 0}
-                onClick={() => void handleParkSale()}
-              >
-                Park sale (F6)
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                disabled={cart.length === 0}
-                onClick={() => {
-                  if (window.confirm("Clear the current sale?")) setCart([]);
-                }}
-              >
-                Clear sale (F4)
-              </Button>
-            </div>
-          </div>
+              <div className="mt-5 flex flex-col gap-2">
+                <Button
+                  variant="success"
+                  size="xl"
+                  className="w-full"
+                  disabled={cart.length === 0}
+                  onClick={() => setCheckoutOpen(true)}
+                >
+                  Pay
+                  <kbd className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-xs font-medium">F2</kbd>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  disabled={cart.length === 0}
+                  onClick={() => void handleParkSale()}
+                >
+                  Park sale
+                  <kbd className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
+                    F6
+                  </kbd>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  disabled={cart.length === 0}
+                  onClick={() => {
+                    if (window.confirm("Clear the current sale?")) setCart([]);
+                  }}
+                >
+                  Clear sale
+                  <kbd className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
+                    F4
+                  </kbd>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Card, CardContent } from "@/components/ui/card";
 import { useProducts, type ProductRecord } from "@/lib/queries/products";
 import { useCreateGrn } from "@/lib/queries/grn";
 import { ApiError } from "@/lib/api/error";
@@ -91,11 +92,13 @@ export function GrnForm() {
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-4xl space-y-6">
+    <Card className="max-w-4xl">
+      <CardContent className="p-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <Label>Lines</Label>
+          <div className="mb-3 flex items-center justify-between">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines</Label>
             <Button type="button" variant="outline" size="sm" onClick={() => append({ ...emptyGrnLine })}>
               Add line
             </Button>
@@ -109,7 +112,7 @@ export function GrnForm() {
             {fields.map((field, index) => (
               <div
                 key={field.id}
-                className="grid grid-cols-12 items-end gap-2 rounded-md border border-zinc-200 p-3"
+                className="grid grid-cols-12 items-end gap-2 rounded-lg border border-slate-200 p-3"
               >
                 <div className="col-span-3">
                   <FormField
@@ -217,7 +220,7 @@ export function GrnForm() {
                 <textarea
                   {...field}
                   rows={3}
-                  className="flex w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                  className="flex w-full rounded-md border border-input-border bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </FormControl>
               <FormMessage />
@@ -225,7 +228,7 @@ export function GrnForm() {
           )}
         />
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 border-t border-slate-100 pt-6">
           <Button type="submit" disabled={createGrn.isPending}>
             {createGrn.isPending ? "Saving…" : "Receive stock"}
           </Button>
@@ -233,7 +236,9 @@ export function GrnForm() {
             Cancel
           </Button>
         </div>
-      </form>
-    </Form>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 }

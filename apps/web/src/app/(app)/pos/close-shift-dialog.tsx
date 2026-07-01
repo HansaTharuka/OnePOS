@@ -79,18 +79,30 @@ export function CloseShiftDialog({
         </DialogHeader>
 
         {result ? (
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Expected cash</span>
-              <span>{formatMoneyCents(result.expectedCash ?? 0, currencySymbol)}</span>
+          <div className="space-y-3">
+            <div className="space-y-2 rounded-lg bg-muted p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Expected cash</span>
+                <span className="tabular-money">{formatMoneyCents(result.expectedCash ?? 0, currencySymbol)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Counted cash</span>
+                <span className="tabular-money">
+                  {formatMoneyCents(result.closingCountedCash ?? 0, currencySymbol)}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Counted cash</span>
-              <span>{formatMoneyCents(result.closingCountedCash ?? 0, currencySymbol)}</span>
-            </div>
-            <div className="flex justify-between text-base font-semibold">
-              <span>Variance</span>
-              <span className={(result.variance ?? 0) !== 0 ? "text-red-600" : ""}>
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
+              <span className="text-sm font-medium text-slate-700">Variance</span>
+              <span
+                className={`tabular-money text-lg font-semibold ${
+                  (result.variance ?? 0) === 0
+                    ? "text-success"
+                    : (result.variance ?? 0) > 0
+                      ? "text-amber-600"
+                      : "text-destructive"
+                }`}
+              >
                 {formatMoneyCents(result.variance ?? 0, currencySymbol)}
               </span>
             </div>

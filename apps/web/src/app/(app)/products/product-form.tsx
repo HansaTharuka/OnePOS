@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useCategories } from "@/lib/queries/categories";
 import { useBrands } from "@/lib/queries/brands";
@@ -95,8 +96,12 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
   const pending = createProduct.isPending || updateProduct.isPending;
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-3xl space-y-6">
+    <Card className="max-w-3xl">
+      <CardContent className="p-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Basic info</h2>
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -177,10 +182,13 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
             )}
           />
         </div>
+        </div>
 
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <Label>Units of measure</Label>
+        <div className="border-t border-slate-100 pt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Units of measure
+            </Label>
             <Button
               type="button"
               variant="outline"
@@ -197,7 +205,7 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
           )}
           <div className="space-y-3">
             {fields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-12 items-end gap-2 rounded-md border border-zinc-200 p-3">
+              <div key={field.id} className="grid grid-cols-12 items-end gap-2 rounded-lg border border-slate-200 p-3">
                 <div className="col-span-2">
                   <FormField
                     control={form.control}
@@ -278,7 +286,7 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
                     checked={field.isBaseUnit}
                     onCheckedChange={() => markAsBaseUnit(index)}
                   />
-                  <span className="text-xs text-zinc-500">Base</span>
+                  <span className="text-xs text-slate-500">Base</span>
                 </div>
                 <div className="col-span-1 flex justify-end pb-2">
                   <Button
@@ -296,6 +304,8 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
           </div>
         </div>
 
+        <div className="border-t border-slate-100 pt-6">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Stock & flags</h2>
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -325,7 +335,7 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
           />
         </div>
 
-        <div className="flex gap-6">
+        <div className="mt-4 flex gap-6">
           <FormField
             control={form.control}
             name="isWeighted"
@@ -363,8 +373,9 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
             )}
           />
         </div>
+        </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 border-t border-slate-100 pt-6">
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : editing ? "Save changes" : "Create product"}
           </Button>
@@ -372,7 +383,9 @@ export function ProductForm({ editing }: { editing?: ProductRecord }) {
             Cancel
           </Button>
         </div>
-      </form>
-    </Form>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 }

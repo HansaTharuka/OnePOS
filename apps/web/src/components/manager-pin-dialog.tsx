@@ -94,6 +94,7 @@ export function ManagerPinDialog({
                 void handleSubmit();
               }
             }}
+            className="h-14 text-center text-2xl font-semibold tracking-[0.5em]"
           />
         </div>
 
@@ -105,7 +106,7 @@ export function ManagerPinDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              className="flex w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+              className="flex w-full rounded-md border border-input-border bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
         )}

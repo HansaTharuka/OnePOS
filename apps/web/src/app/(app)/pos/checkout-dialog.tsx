@@ -5,7 +5,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formatMoneyCents, PAYMENT_METHODS, type CreateSaleDto } from "@onepos/shared-types";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Banknote, CreditCard, FileText, Smartphone, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,13 @@ import {
   toPaymentLines,
   type CheckoutFormValues,
 } from "./checkout-form-schema";
+
+const PAYMENT_METHOD_ICONS: Record<string, typeof Banknote> = {
+  cash: Banknote,
+  card: CreditCard,
+  mobile: Smartphone,
+  credit: FileText,
+};
 
 export function CheckoutDialog({
   open,
@@ -143,18 +150,18 @@ export function CheckoutDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 rounded-lg bg-muted p-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-zinc-500">Subtotal</span>
-              <span>{formatMoneyCents(totals.subtotal, currencySymbol)}</span>
+              <span className="text-slate-500">Subtotal</span>
+              <span className="tabular-money">{formatMoneyCents(totals.subtotal, currencySymbol)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">Tax</span>
-              <span>{formatMoneyCents(totals.taxTotal, currencySymbol)}</span>
+              <span className="text-slate-500">Tax</span>
+              <span className="tabular-money">{formatMoneyCents(totals.taxTotal, currencySymbol)}</span>
             </div>
-            <div className="flex justify-between text-base font-semibold">
+            <div className="flex justify-between border-t border-slate-200 pt-1 text-base font-semibold text-slate-900">
               <span>Total due</span>
-              <span>{formatMoneyCents(totals.grandTotal, currencySymbol)}</span>
+              <span className="tabular-money">{formatMoneyCents(totals.grandTotal, currencySymbol)}</span>
             </div>
           </div>
 
@@ -173,94 +180,114 @@ export function CheckoutDialog({
               )}
 
               <div className="space-y-2">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="grid grid-cols-12 items-end gap-2">
-                    <div className="col-span-4">
-                      <FormField
-                        control={form.control}
-                        name={`payments.${index}.method`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Method</FormLabel>
-                            <Select value={field.value} onValueChange={field.onChange}>
+                {fields.map((field, index) => {
+                  const method = watchedPayments?.[index]?.method;
+                  const MethodIcon = (method && PAYMENT_METHOD_ICONS[method]) || Banknote;
+                  return (
+                    <div
+                      key={field.id}
+                      className="grid grid-cols-12 items-end gap-2 rounded-lg border border-slate-200 p-2.5"
+                    >
+                      <div className="col-span-1 hidden items-center justify-center pb-2 text-primary sm:flex">
+                        <MethodIcon className="h-4 w-4" />
+                      </div>
+                      <div className="col-span-4 sm:col-span-3">
+                        <FormField
+                          control={form.control}
+                          name={`payments.${index}.method`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Method</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {PAYMENT_METHODS.map((method) => (
+                                    <SelectItem key={method} value={method} className="capitalize">
+                                      {method}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <FormField
+                          control={form.control}
+                          name={`payments.${index}.amount`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Amount</FormLabel>
                               <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  autoFocus={index === 0}
+                                  className="tabular-money"
+                                  {...field}
+                                />
                               </FormControl>
-                              <SelectContent>
-                                {PAYMENT_METHODS.map((method) => (
-                                  <SelectItem key={method} value={method} className="capitalize">
-                                    {method}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="col-span-3 sm:col-span-4">
+                        <FormField
+                          control={form.control}
+                          name={`payments.${index}.reference`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Reference (optional)</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end pb-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={fields.length === 1}
+                          onClick={() => remove(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-3">
-                      <FormField
-                        control={form.control}
-                        name={`payments.${index}.amount`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Amount</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.01" autoFocus={index === 0} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <div className="col-span-4">
-                      <FormField
-                        control={form.control}
-                        name={`payments.${index}.reference`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Reference (optional)</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <div className="col-span-1 flex justify-end pb-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={fields.length === 1}
-                        onClick={() => remove(index)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div className="space-y-1 border-t border-zinc-200 pt-2 text-sm">
+              <div className="space-y-1 rounded-lg bg-muted p-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Remaining balance</span>
-                  <span className={remaining > 0 ? "font-medium text-red-600" : "font-medium"}>
+                  <span className="text-slate-500">Remaining balance</span>
+                  <span
+                    className={`tabular-money font-semibold ${remaining > 0 ? "text-destructive" : "text-success"}`}
+                  >
                     {formatMoneyCents(remaining, currencySymbol)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Change due</span>
-                  <span className="font-medium">{formatMoneyCents(changeDue, currencySymbol)}</span>
+                  <span className="text-slate-500">Change due</span>
+                  <span className="tabular-money font-medium text-slate-900">
+                    {formatMoneyCents(changeDue, currencySymbol)}
+                  </span>
                 </div>
               </div>
 
               <DialogFooter>
-                <Button type="submit" disabled={createSale.isPending || remaining > 0}>
+                <Button type="submit" variant="success" size="lg" className="w-full sm:w-auto" disabled={createSale.isPending || remaining > 0}>
                   {createSale.isPending ? "Processing…" : "Confirm payment"}
                 </Button>
               </DialogFooter>

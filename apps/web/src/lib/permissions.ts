@@ -1,23 +1,38 @@
+import {
+  ShoppingCart,
+  Package,
+  Tags,
+  BadgeCheck,
+  Boxes,
+  Truck,
+  Receipt,
+  Clock,
+  type LucideIcon,
+} from "lucide-react";
 import { SystemRole } from "@onepos/shared-types";
+
+export type NavGroup = "Sell" | "Catalog" | "Operations";
 
 export interface NavItem {
   key: string;
   href: string;
   label: string;
+  icon: LucideIcon;
+  group: NavGroup;
 }
 
 export const NAV_ITEMS = {
-  pos: { key: "pos", href: "/pos", label: "POS" },
-  products: { key: "products", href: "/products", label: "Products" },
-  categories: { key: "categories", href: "/categories", label: "Categories" },
-  brands: { key: "brands", href: "/brands", label: "Brands" },
-  inventory: { key: "inventory", href: "/inventory", label: "Inventory" },
-  grn: { key: "grn", href: "/goods-received", label: "Goods Received" },
-  sales: { key: "sales", href: "/sales", label: "Sales" },
-  shifts: { key: "shifts", href: "/shifts", label: "Shifts" },
+  pos: { key: "pos", href: "/pos", label: "POS", icon: ShoppingCart, group: "Sell" },
+  products: { key: "products", href: "/products", label: "Products", icon: Package, group: "Catalog" },
+  categories: { key: "categories", href: "/categories", label: "Categories", icon: Tags, group: "Catalog" },
+  brands: { key: "brands", href: "/brands", label: "Brands", icon: BadgeCheck, group: "Catalog" },
+  inventory: { key: "inventory", href: "/inventory", label: "Inventory", icon: Boxes, group: "Operations" },
+  grn: { key: "grn", href: "/goods-received", label: "Goods Received", icon: Truck, group: "Operations" },
+  sales: { key: "sales", href: "/sales", label: "Sales", icon: Receipt, group: "Operations" },
+  shifts: { key: "shifts", href: "/shifts", label: "Shifts", icon: Clock, group: "Operations" },
 } as const satisfies Record<string, NavItem>;
 
-type NavKey = keyof typeof NAV_ITEMS;
+export type NavKey = keyof typeof NAV_ITEMS;
 
 /**
  * Cosmetic nav filtering only — mirrors the rules in apps/api/src/modules/roles/roles.seed.ts.
@@ -43,7 +58,9 @@ const ROLE_NAV_KEYS: Record<SystemRole, NavKey[]> = {
   [SystemRole.ACCOUNTANT]: ["sales"],
 };
 
-export function getNavItemsForRole(roleName: string): NavItem[] {
-  const keys = ROLE_NAV_KEYS[roleName as SystemRole] ?? [];
-  return keys.map((key) => NAV_ITEMS[key]);
+// Returns keys, not resolved NavItem objects: NavItem.icon is a component reference, which
+// can't cross the server->client prop boundary (this is computed in a Server Component and
+// consumed by the client AppShell/MainNav, which resolve keys back to NAV_ITEMS themselves).
+export function getNavKeysForRole(roleName: string): NavKey[] {
+  return ROLE_NAV_KEYS[roleName as SystemRole] ?? [];
 }
