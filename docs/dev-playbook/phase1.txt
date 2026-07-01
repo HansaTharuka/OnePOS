@@ -1,0 +1,29 @@
+Full command list to run the project from scratch:
+
+cd "D:/SELife/hardcore-projects/POS/OnePOS"
+
+1. MongoDB (skip if onepos-mongo is already running):
+docker start onepos-mongo
+# or, if the container doesn't exist yet:
+# docker run -d --name onepos-mongo -p 27017:27017 -v onepos-mongo-data:/data/db mongo:7
+
+2. Build the shared packages once (required before first run — the API/web consume compiled dist/ output):
+npm run build
+
+3. Start the API (terminal 1):
+cd "D:/SELife/hardcore-projects/POS/OnePOS/apps/api"
+npm run start:dev
+
+4. Start the web app (terminal 2):
+cd "D:/SELife/hardcore-projects/POS/OnePOS/apps/web"
+npm run dev
+
+5. Verify:
+curl http://localhost:3001/api/health
+curl http://localhost:3001/api/settings/public
+Then open http://localhost:3000 in a browser.
+
+To stop everything later (Windows):
+netstat -ano | findstr ":3000 :3001"   # find PIDs
+taskkill //PID <pid> //F               # kill each
+docker stop onepos-mongo               # stop Mongo if you want a full reset

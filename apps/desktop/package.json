@@ -1,0 +1,20 @@
+{
+  "name": "@onepos/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "echo \"desktop shell arrives in Phase 4 — see docs/08-roadmap.md\" && exit 0",
+    "lint": "echo \"no lint configured\" && exit 0",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@onepos/shared-types": "*"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "typescript": "^5.7.2"
+  }
+}
