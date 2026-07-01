@@ -1,0 +1,102 @@
+Phase 3 (Multi-terminal, shifts, split payments, PIN override, park-sale) — DONE, backend +
+UI.
+Full details: docs/09-implementation-status.md ("Phase 3" section).
+
+To run it: same steps as phase1.txt, but see the "roles reseed" gotcha below if your dev DB
+already has roles seeded from an earlier phase.
+
+Test users (same as phase1.txt):
+- Admin: admin@onepos.test / Password123!
+- Cashier: cashier@onepos.test / Password123!
+
+Neither seeded user has a PIN set (`pinHash` is unset), so manager-PIN-gated actions
+(discount override, void, cash-drawer paid-out/drop) cannot be *completed* end-to-end without
+first setting one — see "Setting a manager PIN" below. You can still exercise the PIN modal
+itself (it opens, requires a PIN/reason, and cleanly rejects a wrong PIN) without one.
+
+What's in the nav, by role (in addition to what phase2.txt lists):
+- super_admin / admin / manager / cashier: Shifts (added)
+  (Cashier's view is scoped server-side to their own shifts; nav entry is the same link for
+  everyone — nav filtering is cosmetic only, same convention as Phase 2.)
+- Parked sales has no nav entry — reached via the "Parked sales" button on the POS header.
+
+Quick manual walkthrough:
+1. Log in as cashier. Go to POS — since no shift is open yet, an "Open shift" form appears
+   instead of the cart. Enter an opening float (e.g. 100.00) → the cart appears.
+2. Add a couple of items, Pay (F2). The checkout dialog is now a repeatable tender-row list
+   (method: cash/card/mobile/credit + amount + optional reference), not a single amount
+   field, with a live remaining-balance display. Split the total across e.g. cash + card,
+   submit — the sale completes and any change due (always paid from the cash portion) shows.
+3. On a fresh cart, edit a line's discount to something clearly over 20% of that line's
+   price (the default `maxCashierDiscountPercent`) and check out — a manager-PIN modal opens
+   instead of the sale silently succeeding. See "Setting a manager PIN" to complete this.
+4. Add an item, press F6 (or "Park sale") — the cart clears and a toast confirms it. Go to
+   "Parked sales" (POS header button), see it listed, click Resume — back on POS with the
+   same lines reloaded — then check out or Discard.
+5. Go to Shifts — the cashier's own shift from step 1 is listed. Open its detail page, record
+   a "paid-in" cash movement (no PIN required) — appears in the ledger — then try "paid-out"
+   (requires a manager PIN).
+6. Close the shift (header button on POS, or from the shift detail page) with a counted-cash
+   amount — the response shows `expectedCash`/`variance` computed from the shift's sales and
+   cash movements.
+7. Log out (this now clears all cached client data — see gotcha below), log in as admin, go
+   to Sales, open the completed sale from step 2 — a "Void sale" button appears, PIN-gated
+   with a required reason.
+
+Setting a manager PIN (needed to complete steps 3, 6's paid-out, and 7):
+No seeded user has one. Set one directly against the admin user's document — the API hashes
+PINs with bcrypt (12 rounds), same as passwords:
+  node -e "console.log(require('bcrypt').hashSync('1234', 12))"   (run inside apps/api)
+then in mongosh: db.users.updateOne({email:"admin@onepos.test"}, {$set:{pinHash:"<hash>"}})
+Manager-PIN verification matches any manager/admin/super_admin-tier user with a PIN set —
+it's a shared till PIN, not tied to whoever is logged in as cashier.
+
+Known gaps / deliberately deferred (see docs/09-implementation-status.md for why):
+- No manual inventory-adjustment UI (damage/shrinkage/count-correction) — stock only ever
+  changes via GRN, Sale, or (still unbuilt) `stockAdjustments`. Phase 6 territory.
+- Void/override provenance lives directly on the Sale document (`voidedBy`, `voidReason`,
+  `overrideApprovedBy`) — there's no generic `auditLogs` collection/viewer yet (Phase 6).
+- `resumedFromParkedId` on `CreateSaleDto` is accepted but not acted on server-side; deleting
+  the source parked sale after a successful resume-and-checkout is done client-side only.
+
+Gotchas hit during this phase (read before repeating this pattern):
+1. **React Query cache must be cleared on logout.** `useCurrentShift`'s query key is scoped
+   by `terminalId` only, not by user — nothing in this app scopes any query by user id,
+   actually (same as `useProducts`, `useSales`, etc.). Logging out and back in as a
+   *different* user in the same browser tab used to silently reuse the previous session's
+   cached data — most visibly, a cashier logging in after an admin who had a shift open
+   would skip the "Open shift" gate entirely and inherit the admin's (wrong) shift, which the
+   backend correctly rejected at checkout with "No open shift for this terminal." Fixed by
+   calling `queryClient.clear()` in `components/layout/logout-button.tsx`'s logout handler.
+   If you ever test as two different users in one tab without going through this exact
+   "Sign out" button, expect the same stale-cache symptom.
+2. **`ShiftDto.openedAt` never existed on the wire.** The `Shift` schema deliberately reuses
+   `createdAt` (from `timestamps: true`) as the semantic open time rather than storing a
+   redundant field — but nothing maps `createdAt` → `openedAt` in the response, same
+   "raw Mongoose document" gap already documented in Phase 2 (`MongoDoc<T>` only handles the
+   `_id`/`id` mismatch, not field renames). `ShiftDto` now declares `createdAt: string`
+   directly instead of `openedAt`, matching how every other `*Dto` in this codebase is
+   consumed. If you add a display-only convenience field name to a DTO in the future, either
+   have the backend actually populate it or don't declare it — the type checker can't catch
+   a field that types say exists but no code ever sets.
+3. **Roles only seed once, against an empty collection** (documented since Phase 1) — adding
+   new CASL rules to `roles.seed.ts` (this phase added Cashier: `READ` own `Shift`, `DELETE`
+   own `Sale`) does nothing on a dev DB that already has a `roles` collection. Drop it
+   (`db.roles.drop()`) and restart the API. **After doing this, existing users' `roleId`
+   references break** (roles get new `_id`s on reseed) — repair them by matching on role
+   `name`, e.g.:
+   ```
+   var r = db.roles.findOne({name:'cashier'});
+   db.users.updateOne({email:'cashier@onepos.test'}, {$set:{roleId: r._id}});
+   ```
+   Do this for every seeded test user after any roles reseed.
+
+Verification commands (all pass clean as of this writeup):
+cd "D:/SELife/hardcore-projects/POS/OnePOS"
+npm run build
+npm run typecheck
+npm run lint
+npm run test
+(the last runs `apps/api/src/modules/inventory/inventory.concurrency.spec.ts`, a real
+in-memory-MongoDB test proving 20 concurrent atomic stock decrements against 10 units of
+stock yield exactly 10 successes/10 `ConflictException`s and never a negative `qtyOnHand`.)
