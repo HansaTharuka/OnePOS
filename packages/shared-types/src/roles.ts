@@ -32,6 +32,8 @@ export enum CaslSubject {
   ALL = "all", // CASL wildcard: all subjects
   USER = "User",
   ROLE = "Role",
+  CATEGORY = "Category",
+  BRAND = "Brand",
   PRODUCT = "Product",
   INVENTORY = "Inventory",
   PURCHASE_ORDER = "PurchaseOrder",

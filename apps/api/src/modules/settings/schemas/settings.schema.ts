@@ -36,6 +36,10 @@ export class Settings {
     enum: ['block', 'warn', 'allow_backorder'],
   })
   negativeStockPolicy!: 'block' | 'warn' | 'allow_backorder';
+
+  /** Cashier line discounts above this % require manager-PIN override (Phase 3). */
+  @Prop({ required: true, default: 20 })
+  maxCashierDiscountPercent!: number;
 }
 
 export const SettingsSchema = SchemaFactory.createForClass(Settings);

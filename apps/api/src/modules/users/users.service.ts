@@ -57,6 +57,19 @@ export class UsersService {
       .exec();
   }
 
+  /**
+   * Active users with a PIN configured — candidates for manager-PIN step-up
+   * approval (see ManagerPinService). Filtering to the manager/admin tier
+   * role names happens in the caller, since role is only known post-populate.
+   */
+  findManagerPinCandidates() {
+    return this.userModel
+      .find({ isActive: true, pinHash: { $exists: true, $ne: null } })
+      .select('+pinHash')
+      .populate('roleId')
+      .exec();
+  }
+
   async update(id: string, dto: UpdateUserDto): Promise<UserDocument> {
     const user = await this.userModel
       .findByIdAndUpdate(id, dto, { new: true })

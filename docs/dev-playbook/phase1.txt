@@ -27,3 +27,8 @@ To stop everything later (Windows):
 netstat -ano | findstr ":3000 :3001"   # find PIDs
 taskkill //PID <pid> //F               # kill each
 docker stop onepos-mongo               # stop Mongo if you want a full reset
+
+
+
+- Admin: admin@onepos.test / Password123!
+- Cashier: cashier@onepos.test / Password123!

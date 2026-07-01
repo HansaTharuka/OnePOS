@@ -13,14 +13,22 @@ export const businessSettingsSchema = z.object({
   invoicePrefix: z.string().default("INV"),
   receiptFooterText: z.string().optional(),
   negativeStockPolicy: z.enum(["block", "warn", "allow_backorder"]).default("block"),
+  /** Cashier line discounts above this % require manager-PIN override (see Phase 3). */
+  maxCashierDiscountPercent: z.number().min(0).max(100).default(20),
 });
 export type BusinessSettings = z.infer<typeof businessSettingsSchema>;
 
-/** Fields exposed to the unauthenticated /settings/public endpoint. */
+/**
+ * Fields exposed to the unauthenticated /settings/public endpoint. `defaultTaxRatePercent` is
+ * included so the cashier POS screen (which has no `read Settings` permission — see
+ * roles.seed.ts) can show an accurate running total; it's not sensitive, it's printed on every
+ * receipt anyway.
+ */
 export const publicSettingsSchema = businessSettingsSchema.pick({
   businessName: true,
   logoUrl: true,
   currencyCode: true,
   currencySymbol: true,
+  defaultTaxRatePercent: true,
 });
 export type PublicSettings = z.infer<typeof publicSettingsSchema>;

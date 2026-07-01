@@ -54,7 +54,13 @@ export const ROLE_SEED_DEFINITIONS: RoleSeedDefinition[] = [
       ),
       rule(
         [CaslAction.MANAGE],
-        [CaslSubject.PRODUCT, CaslSubject.INVENTORY, CaslSubject.CUSTOMER],
+        [
+          CaslSubject.PRODUCT,
+          CaslSubject.INVENTORY,
+          CaslSubject.CATEGORY,
+          CaslSubject.BRAND,
+          CaslSubject.CUSTOMER,
+        ],
       ),
     ],
   },
@@ -70,8 +76,22 @@ export const ROLE_SEED_DEFINITIONS: RoleSeedDefinition[] = [
       rule([CaslAction.UPDATE], [CaslSubject.SALE], {
         conditions: { cashierId: '$user.id' },
       }),
-      rule([CaslAction.READ], [CaslSubject.PRODUCT, CaslSubject.INVENTORY]),
+      rule(
+        [CaslAction.READ],
+        [
+          CaslSubject.PRODUCT,
+          CaslSubject.INVENTORY,
+          CaslSubject.CATEGORY,
+          CaslSubject.BRAND,
+        ],
+      ),
       rule([CaslAction.CREATE, CaslAction.UPDATE], [CaslSubject.SHIFT], {
+        conditions: { cashierId: '$user.id' },
+      }),
+      rule([CaslAction.READ], [CaslSubject.SHIFT], {
+        conditions: { cashierId: '$user.id' },
+      }),
+      rule([CaslAction.DELETE], [CaslSubject.SALE], {
         conditions: { cashierId: '$user.id' },
       }),
     ],
@@ -87,6 +107,8 @@ export const ROLE_SEED_DEFINITIONS: RoleSeedDefinition[] = [
         [
           CaslSubject.PRODUCT,
           CaslSubject.INVENTORY,
+          CaslSubject.CATEGORY,
+          CaslSubject.BRAND,
           CaslSubject.PURCHASE_ORDER,
           CaslSubject.GRN,
         ],

@@ -1,0 +1,47 @@
+Phase 2 (Core POS, single terminal, online-only) — DONE, backend + UI.
+Full details: docs/09-implementation-status.md ("Phase 2" section).
+
+To run it: same steps as phase1.txt. Login at http://localhost:3000 (redirects to /login
+automatically if not authenticated).
+
+Test users (same as phase1.txt):
+- Admin: admin@onepos.test / Password123!
+- Cashier: cashier@onepos.test / Password123!
+
+What's in the nav, by role:
+- super_admin / admin / manager: POS, Products, Categories, Brands, Inventory, Goods Received, Sales
+- cashier: POS, Inventory, Sales
+- inventory_clerk: Products, Categories, Brands, Inventory, Goods Received
+- accountant: Sales
+(Nav filtering is cosmetic only — apps/web/src/lib/permissions.ts — the API's CASL guard is the
+real enforcement, so this list is what THIS UI shows, not the full set of what a role could
+theoretically reach if more screens existed.)
+
+Quick manual walkthrough:
+1. Log in as admin.
+2. Categories -> New category (e.g. "Plumbing"), optionally a child with that as parent.
+3. Brands -> New brand (e.g. "Acme Tools").
+4. Products -> New product: SKU, name, pick category/brand, add 1+ units of measure (mark exactly
+   one as Base), Create.
+5. Goods Received -> Receive stock: pick the product, a UOM, qty, unit cost -> Receive stock.
+6. Inventory -> confirm qty on hand went up.
+7. Log out, log in as cashier.
+8. POS -> scan/type the product's barcode or SKU (or "qty*sku", e.g. "5*SCR-001"), Enter to add
+   to cart. Pay (F2) -> enter amount tendered -> Confirm payment -> printable receipt.
+9. Sales -> see the completed sale in history.
+
+Known gaps / deliberately deferred (see docs/09-implementation-status.md for why):
+- No split/multi-tender payment, no park-sale, no manager-PIN override -- backend doesn't support
+  them yet (Phase 3 candidates).
+- No GET /roles endpoint and no ability-resolution endpoint -- role/permission management UI is
+  Phase 6, not needed yet.
+- Every list/detail API response is a raw Mongo document ({_id, ...}), not the {id, ...} shape the
+  shared-types *Dto interfaces declare -- see apps/web/src/lib/api/types.ts (MongoDoc<T>) if
+  touching any query hook in apps/web/src/lib/queries/.
+
+Verification commands (all pass clean as of this writeup):
+cd "D:/SELife/hardcore-projects/POS/OnePOS"
+npm run build
+npm run typecheck
+npm run lint
+npm run test
