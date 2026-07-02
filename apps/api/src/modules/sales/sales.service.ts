@@ -97,6 +97,7 @@ export class SalesService {
     dto: CreateSaleDto,
     cashierId: string,
     requestingUser: RequestUser,
+    options?: { allowStockForceThrough?: boolean },
   ): Promise<SaleDocument> {
     const existing = await this.saleModel
       .findOne({ idempotencyKey: dto.idempotencyKey })
@@ -165,17 +166,39 @@ export class SalesService {
     // Pass 2: decrement stock per line. If a later line's guard fails (e.g.
     // insufficient stock under the "block" policy), compensate by
     // re-incrementing the lines already decremented earlier in this request.
+    // Exception: when replaying an offline sync event (allowStockForceThrough),
+    // a genuine stockout is force-decremented through instead of aborting —
+    // the sale already happened at the till while offline, so it can't simply
+    // fail now; it's flagged for manager review instead (docs/05-offline-sync-and-backup.md).
     const baseQtiesDecremented: { productId: string; baseQty: number }[] = [];
+    let forcedStockout = false;
     try {
       for (let i = 0; i < dto.lines.length; i++) {
         const productId = dto.lines[i].productId;
         const baseQty = baseQties[i];
-        await this.inventoryService.decrementStockAtomic(
-          productId,
-          dto.branchId,
-          baseQty,
-          settings.negativeStockPolicy,
-        );
+        try {
+          await this.inventoryService.decrementStockAtomic(
+            productId,
+            dto.branchId,
+            baseQty,
+            settings.negativeStockPolicy,
+          );
+        } catch (err) {
+          if (
+            options?.allowStockForceThrough &&
+            err instanceof ConflictException
+          ) {
+            await this.inventoryService.decrementStockAtomic(
+              productId,
+              dto.branchId,
+              baseQty,
+              'allow_backorder',
+            );
+            forcedStockout = true;
+          } else {
+            throw err;
+          }
+        }
         baseQtiesDecremented.push({ productId, baseQty });
       }
     } catch (err) {
@@ -209,6 +232,10 @@ export class SalesService {
         status: 'completed',
         idempotencyKey: dto.idempotencyKey,
         overrideApprovedBy,
+        needsManagerReview: forcedStockout,
+        reviewReason: forcedStockout
+          ? 'Offline sale replayed after stock was already depleted; verify quantities.'
+          : undefined,
       });
     } catch (err: unknown) {
       // Rare concurrent double-submit of the same idempotency key — the
@@ -334,6 +361,11 @@ export class SalesService {
 
   findAll() {
     return this.saleModel.find().exec();
+  }
+
+  /** Used by sync replay to dedupe a queued offline event before creating it. */
+  findByIdempotencyKey(idempotencyKey: string): Promise<SaleDocument | null> {
+    return this.saleModel.findOne({ idempotencyKey }).exec();
   }
 
   async findById(id: string): Promise<SaleDocument> {

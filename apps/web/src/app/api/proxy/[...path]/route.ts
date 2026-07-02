@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001/api";
+import { getApiBaseUrl } from "@/lib/api/base-url";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
@@ -13,19 +12,30 @@ async function forward(request: Request, context: RouteContext) {
 
   const { path } = await context.params;
   const search = new URL(request.url).search;
-  const targetUrl = `${API_BASE_URL}/${path.join("/")}${search}`;
+  const targetUrl = `${getApiBaseUrl()}/${path.join("/")}${search}`;
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
-  const apiRes = await fetch(targetUrl, {
-    method: request.method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.accessToken}`,
-    },
-    body: hasBody ? await request.text() : undefined,
-    cache: "no-store",
-  });
+  let apiRes: Response;
+  try {
+    apiRes = await fetch(targetUrl, {
+      method: request.method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+      body: hasBody ? await request.text() : undefined,
+      cache: "no-store",
+    });
+  } catch {
+    // The backend api is unreachable (offline / crashed) — this happens
+    // server-side in Next.js, so the browser's own fetch to this same-origin
+    // route never throws a network-level error the way isNetworkFailure()
+    // (lib/offline/electron-bridge.ts) expects; it just sees a resolved,
+    // non-ok response. 503 is the signal that maps back to a real offline
+    // failure client-side instead of a generic 500.
+    return NextResponse.json({ message: "Backend unreachable" }, { status: 503 });
+  }
 
   if (apiRes.status === 204) {
     return new NextResponse(null, { status: 204 });

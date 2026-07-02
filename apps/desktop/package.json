@@ -4,17 +4,29 @@
   "private": true,
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "echo \"desktop shell arrives in Phase 4 — see docs/08-roadmap.md\" && exit 0",
+    "build": "tsc -p tsconfig.json && node scripts/copy-static.js",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "dev": "npm run build && electron .",
+    "fetch:node": "node scripts/fetch-node.js",
+    "fetch:mongo": "node scripts/fetch-mongo.js",
+    "stage:api": "node scripts/build-api-resources.js",
+    "package": "npm run fetch:node && npm run fetch:mongo && npm run stage:api && npm run build && npm run electron-builder",
+    "electron-builder": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
     "lint": "echo \"no lint configured\" && exit 0",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
-    "@onepos/shared-types": "*"
+    "@onepos/shared-types": "*",
+    "better-sqlite3": "^11.7.0",
+    "mongodb-memory-server-core": "^11.2.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/better-sqlite3": "^7.6.12",
+    "cross-env": "^10.1.0",
     "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.7.2"
   }
 }

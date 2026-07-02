@@ -12,6 +12,19 @@ export const pinLoginDtoSchema = z.object({
 });
 export type PinLoginDto = z.infer<typeof pinLoginDtoSchema>;
 
+/** First-run bootstrap — see docs/dev-playbook/phase4.txt "no bootstrap path" gap. */
+export const setupDtoSchema = z.object({
+  businessName: z.string().min(1),
+  adminName: z.string().min(1),
+  adminEmail: z.string().email(),
+  adminPassword: z.string().min(8),
+});
+export type SetupDto = z.infer<typeof setupDtoSchema>;
+
+export interface SetupStatusDto {
+  needsSetup: boolean;
+}
+
 export interface JwtClaims {
   sub: string; // user id
   email: string;

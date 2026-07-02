@@ -106,6 +106,15 @@ export class Sale {
 
   @Prop()
   voidReason?: string;
+
+  /** Set only when this sale was created via offline sync replay and the
+   * stock decrement was forced through past a real stockout (see
+   * modules/sync). */
+  @Prop({ default: false })
+  needsManagerReview?: boolean;
+
+  @Prop()
+  reviewReason?: string;
 }
 
 export const SaleSchema = SchemaFactory.createForClass(Sale);

@@ -22,6 +22,7 @@ export const SYNC_EVENT_RESULT_STATUSES = [
   "applied",
   "duplicate",
   "flagged",
+  "failed",
 ] as const;
 export type SyncEventResultStatus = (typeof SYNC_EVENT_RESULT_STATUSES)[number];
 
@@ -29,6 +30,11 @@ export type SyncEventResultStatus = (typeof SYNC_EVENT_RESULT_STATUSES)[number];
  * One result per submitted event, in the same order as the request.
  * `flagged` means the sale was applied (stock forced through) but needs
  * manager review because the replayed decrement hit a real stockout.
+ * `failed` means no sale was created at all — a genuine business-rule
+ * rejection (e.g. the shift closed before sync ran, or a discount override
+ * PIN was needed but never captured offline). `reason` carries why. The
+ * client keeps the event queued locally so it isn't silently lost; there's
+ * no automatic recovery for `failed` events, they need manual attention.
  */
 export interface SyncPushResultDto {
   clientEventId: string;
@@ -44,4 +50,17 @@ export interface SyncPushResponseDto {
 
 export interface SyncPullResponseDto {
   serverTime: string;
+}
+
+/**
+ * Pushed from the Electron main process's background sync worker to the
+ * renderer (see apps/desktop/src/sync-worker.ts and the matching
+ * apps/web/src/lib/offline/use-sync-status.ts consumer) so the POS UI can
+ * show a pending-sync count without polling the outbox itself.
+ */
+export interface SyncStatus {
+  online: boolean;
+  pendingCount: number;
+  erroredCount: number;
+  lastError?: string;
 }

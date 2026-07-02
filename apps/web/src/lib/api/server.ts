@@ -1,8 +1,7 @@
 import "server-only";
 import { getSession } from "@/lib/session";
 import { toApiError } from "@/lib/api/error";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001/api";
+import { getApiBaseUrl } from "@/lib/api/base-url";
 
 /**
  * For Server Components / Route Handlers only. Calls NestJS directly (already server-side, no
@@ -10,7 +9,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3
  */
 export async function apiGet<T>(path: string): Promise<T> {
   const session = await getSession();
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     cache: "no-store",
     headers: session ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
   });

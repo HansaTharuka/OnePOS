@@ -1,0 +1,54 @@
+# Centralized server: MongoDB + apps/api + apps/web on one machine, reachable
+# over the shop LAN. Terminals need nothing installed — just a browser pointed
+# at http://<this-machine's-LAN-IP>:3000. See docs/04-configuration.md.
+#
+# Usage: copy .env.example to .env, set JWT_SECRET and WEB_ORIGIN, then
+# `docker compose up -d --build`.
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - onepos-mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://mongo:27017/onepos
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: 8h
+      CORS_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+    ports:
+      - "3001:3001"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      # Server-side only (see apps/web/src/lib/api/base-url.ts) — resolved over
+      # the compose network, not exposed to the browser. Deliberately not
+      # NEXT_PUBLIC_-prefixed: that prefix gets inlined at image build time,
+      # which would break overriding it here at container start.
+      API_BASE_URL: http://api:3001/api
+      # Leave false unless a TLS-terminating reverse proxy sits in front of this
+      # service — see the COOKIE_SECURE comment in apps/web/.env.example.
+      COOKIE_SECURE: "false"
+    ports:
+      - "3000:3000"
+
+volumes:
+  onepos-mongo-data:

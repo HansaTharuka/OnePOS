@@ -42,6 +42,10 @@ export class UsersService {
     return this.userModel.find().populate('roleId').exec();
   }
 
+  count(): Promise<number> {
+    return this.userModel.countDocuments().exec();
+  }
+
   async findById(id: string): Promise<UserDocument> {
     const user = await this.userModel.findById(id).populate('roleId').exec();
     if (!user) throw new NotFoundException('User not found.');

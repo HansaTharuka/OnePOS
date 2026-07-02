@@ -17,6 +17,7 @@ import { useCurrentShift } from "@/lib/queries/shifts";
 import { useDeleteParkedSale, useParkedSales, useParkSale } from "@/lib/queries/sales";
 import { useTerminalId } from "@/lib/terminal";
 import { ApiError } from "@/lib/api/error";
+import { useSyncStatus } from "@/lib/offline/use-sync-status";
 import {
   cartLinesFromParkedSale,
   computeTotals,
@@ -39,6 +40,7 @@ function PosScreen() {
   const { data: parkedSales } = useParkedSales();
   const parkSale = useParkSale();
   const deleteParkedSale = useDeleteParkedSale();
+  const syncStatus = useSyncStatus();
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanValue, setScanValue] = useState("");
@@ -185,6 +187,18 @@ function PosScreen() {
     router.push(`/sales/${saleId}`);
   }
 
+  // No server id exists yet for a queued-offline sale — stay on /pos instead of navigating to a
+  // receipt that doesn't exist server-side until the background sync worker replays it.
+  function handleQueuedOffline() {
+    if (resumedFromParkedId) {
+      deleteParkedSale.mutate(resumedFromParkedId);
+    }
+    setCart([]);
+    setCheckoutOpen(false);
+    setIdempotencyKey(newIdempotencyKey());
+    setResumedFromParkedId(undefined);
+  }
+
   if (shiftLoading || !terminalId) {
     return <p className="text-sm text-slate-500">Loading…</p>;
   }
@@ -199,6 +213,12 @@ function PosScreen() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">POS Terminal</h1>
           <Badge variant="info">Shift {currentShift.shiftNo}</Badge>
+          {syncStatus.pendingCount > 0 && (
+            <Badge variant="warning">{syncStatus.pendingCount} pending sync</Badge>
+          )}
+          {syncStatus.erroredCount > 0 && (
+            <Badge variant="destructive">{syncStatus.erroredCount} sync errors</Badge>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => router.push("/parked-sales")}>
@@ -418,7 +438,9 @@ function PosScreen() {
         terminalId={terminalId}
         shiftId={currentShift._id}
         resumedFromParkedId={resumedFromParkedId}
+        maxCashierDiscountPercent={settings?.maxCashierDiscountPercent ?? 20}
         onSuccess={handleSaleSuccess}
+        onQueuedOffline={handleQueuedOffline}
       />
 
       <CloseShiftDialog

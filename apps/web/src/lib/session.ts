@@ -23,12 +23,20 @@ export async function getSession(): Promise<Session | null> {
   }
 }
 
+/**
+ * Deliberately not tied to NODE_ENV: a centralized LAN deployment (see
+ * docs/04-configuration.md) commonly runs with NODE_ENV=production but no TLS
+ * termination, and `secure: true` on plain HTTP makes browsers silently drop the
+ * cookie — login "succeeds" then immediately bounces back to /login.
+ */
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+
 export async function setSessionCookie(auth: AuthTokenResponse): Promise<void> {
   const store = await cookies();
   const session: Session = { accessToken: auth.accessToken, user: auth.user };
   store.set(SESSION_COOKIE, JSON.stringify(session), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: COOKIE_SECURE,
     sameSite: "lax",
     path: "/",
     maxAge: auth.expiresIn,

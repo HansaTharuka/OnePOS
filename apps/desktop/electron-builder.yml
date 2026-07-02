@@ -1,0 +1,88 @@
+# electron-builder config — produces a self-contained Windows installer that
+# bundles apps/api, apps/web (standalone), a portable Node runtime, and a
+# portable MongoDB binary, so an end-user machine needs nothing pre-installed
+# (no Docker, no Node, no MongoDB). See docs/dev-playbook/phase5.txt and
+# src/main.ts's packaged-mode branch for how these resources get consumed.
+# Code signing and auto-update are out of scope until later hardening work.
+appId: com.onepos.desktop
+productName: OnePOS
+# electron-builder's auto-detection looks for an `electron` package inside this
+# workspace's own node_modules, but in this npm-workspaces monorepo it's
+# hoisted to the repo root instead — so it has to be told explicitly. Keep
+# this in sync with the `electron` devDependency version below.
+electronVersion: 33.4.11
+
+# This is a Turborepo workspace — do NOT let electron-builder walk up and try
+# to package the whole monorepo. Output goes to its own "release" directory
+# (not "dist", which is already the tsc build output for the main process).
+directories:
+  output: release
+  buildResources: build
+
+# better-sqlite3 is already rebuilt against Electron's ABI via this
+# workspace's own `npm run rebuild` (electron-rebuild) before packaging —
+# electron-builder's own automatic @electron/rebuild step is redundant and,
+# on this dev machine, unreliable (its "remote-rebuild" child process
+# intermittently fails to find its own freshly-installed files, consistent
+# with the AV interference documented in scripts/fetch-node.js).
+npmRebuild: false
+
+files:
+  - dist/**/*
+  - package.json
+  - "!**/*.map"
+
+# apps/api and apps/web's production builds aren't produced by this workspace,
+# so they're copied in as resources rather than declared as `files`. The
+# bundled Node runtime and mongod binary are likewise pre-fetched build-time
+# artifacts (scripts/fetch-node.js, scripts/fetch-mongo.js), not npm deps.
+extraResources:
+  # apps/api compiled dist + production node_modules (built against the
+  # bundled Node's ABI — see scripts/build-api-resources.js — so bcrypt's
+  # native binary matches at runtime).
+  - from: staging/api
+    to: api
+
+  # apps/web's `output: "standalone"` build. outputFileTracingRoot is the
+  # monorepo root (see apps/web/next.config.ts), so the entry point lands at
+  # web/apps/web/server.js, not web/server.js — main.ts's startWebProcess()
+  # accounts for this. `public` and `.next/static` are copied in manually per
+  # Next's standalone-output docs (the standalone build doesn't include them).
+  - from: ../web/.next/standalone
+    to: web
+  - from: ../web/public
+    to: web/apps/web/public
+  - from: ../web/.next/static
+    to: web/apps/web/.next/static
+
+  # Portable Node runtime (scripts/fetch-node.js) — runs both apiProcess and
+  # webProcess in packaged mode, so end users don't need Node installed.
+  - from: vendor/node
+    to: node
+
+  # Pre-fetched mongod binary (scripts/fetch-mongo.js) — MongoManager points
+  # `binary.downloadDir` at this so it never attempts a runtime download.
+  - from: vendor/mongodb-binaries
+    to: mongodb-binaries
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # NSIS's auto-update signature verification otherwise pulls in
+  # electron-builder's cross-platform `winCodeSign` tooling (macOS binaries
+  # with symlinks) even though we're not signing or auto-updating at all —
+  # extracting those symlinks needs a Windows privilege this dev sandbox's
+  # account doesn't have. Not needed: this app has no auto-updater.
+  verifyUpdateCodeSignature: false
+  # electron-builder otherwise tries to locate signtool (via winCodeSign, see
+  # above) to sign every .exe found in extraResources (node.exe, mongod.exe)
+  # even with no signing cert configured — same winCodeSign/symlink problem.
+  # No code signing is set up for this app at all yet (see file header).
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true

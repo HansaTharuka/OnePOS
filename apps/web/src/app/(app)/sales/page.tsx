@@ -60,7 +60,10 @@ export default function SalesPage() {
                       {formatMoneyCents(sale.grandTotal, currencySymbol)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[sale.status] ?? "secondary"}>{sale.status}</Badge>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant={STATUS_VARIANT[sale.status] ?? "secondary"}>{sale.status}</Badge>
+                        {sale.needsManagerReview && <Badge variant="warning">Needs review</Badge>}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

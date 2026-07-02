@@ -37,6 +37,7 @@ export default function SaleReceiptPage({ params }: { params: Promise<{ id: stri
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Receipt {receipt.orderNo}</h1>
           {sale && <Badge variant={STATUS_VARIANT[sale.status] ?? "secondary"}>{sale.status}</Badge>}
+          {sale?.needsManagerReview && <Badge variant="warning">Needs review</Badge>}
         </div>
         <div className="flex gap-2">
           {sale?.status === "completed" && (
@@ -50,6 +51,10 @@ export default function SaleReceiptPage({ params }: { params: Promise<{ id: stri
           </Button>
         </div>
       </div>
+
+      {sale?.needsManagerReview && (
+        <p className="mb-4 text-sm text-amber-700 print:hidden">{sale.reviewReason}</p>
+      )}
 
       <Card className="mx-auto max-w-sm shadow-md">
         <div className="p-6 font-mono text-sm">

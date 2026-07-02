@@ -13,6 +13,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { GoodsReceivedNotesModule } from './modules/goods-received-notes/goods-received-notes.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
+import { SyncModule } from './modules/sync/sync.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -37,6 +38,7 @@ import { AppService } from './app.service';
     GoodsReceivedNotesModule,
     SalesModule,
     ShiftsModule,
+    SyncModule,
   ],
   controllers: [AppController],
   providers: [AppService],

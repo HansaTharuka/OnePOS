@@ -30,6 +30,7 @@ import { useCreateSale } from "@/lib/queries/sales";
 import { ApiError } from "@/lib/api/error";
 import { computeTotals, type CartLine } from "@/lib/pos/cart";
 import { ManagerPinDialog } from "@/components/manager-pin-dialog";
+import { isElectron, isNetworkFailure } from "@/lib/offline/electron-bridge";
 import {
   checkoutFormSchema,
   emptyPaymentRow,
@@ -55,7 +56,9 @@ export function CheckoutDialog({
   terminalId,
   shiftId,
   resumedFromParkedId,
+  maxCashierDiscountPercent,
   onSuccess,
+  onQueuedOffline,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,7 +69,9 @@ export function CheckoutDialog({
   terminalId: string;
   shiftId: string;
   resumedFromParkedId?: string;
+  maxCashierDiscountPercent: number;
   onSuccess: (saleId: string) => void;
+  onQueuedOffline: () => void;
 }) {
   const createSale = useCreateSale();
   const [pinOpen, setPinOpen] = useState(false);
@@ -112,13 +117,44 @@ export function CheckoutDialog({
     };
   }
 
+  // A queued sale has no server id/orderNo yet — the offline discount-cap check below is only an
+  // advisory heads-up (the server always re-checks authoritatively on sync replay); it exists
+  // because offline there's no round-trip to react to the way the online 400-then-PIN flow works.
+  function exceedsDiscountCapLocally(): boolean {
+    return lines.some((line) => {
+      const baseAmount = line.unitPrice * line.qty;
+      if (baseAmount <= 0) return false;
+      return (line.discount / baseAmount) * 100 > maxCashierDiscountPercent;
+    });
+  }
+
   // Reused for both the initial submit and the manager-override retry — same idempotencyKey both
   // times, so a retry after approval can't create a duplicate sale/stock decrement.
   async function submitSale(values: CheckoutFormValues, managerOverridePin?: string) {
     const dto = buildDto(values, managerOverridePin);
-    const sale = await createSale.mutateAsync(dto);
-    toast.success(`Sale ${sale.orderNo} completed.`);
-    onSuccess(sale._id);
+    try {
+      const sale = await createSale.mutateAsync(dto);
+      toast.success(`Sale ${sale.orderNo} completed.`);
+      onSuccess(sale._id);
+    } catch (error) {
+      if (isNetworkFailure(error) && isElectron()) {
+        if (exceedsDiscountCapLocally()) {
+          toast.error(
+            "This discount needs manager approval and can't be queued offline. Reduce the discount or reconnect.",
+          );
+          return;
+        }
+        await window.onepos!.queueSale({
+          clientEventId: dto.idempotencyKey,
+          type: "sale.create",
+          payload: dto,
+        });
+        toast.success("No connection — sale queued and will sync automatically.");
+        onQueuedOffline();
+        return;
+      }
+      throw error;
+    }
   }
 
   async function onSubmit(values: CheckoutFormValues) {

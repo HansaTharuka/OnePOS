@@ -1,0 +1,117 @@
+Phase 4 (Offline-first: Electron shell, SQLite outbox, background sync, event replay) — DONE,
+backend + desktop + web.
+Full details: docs/09-implementation-status.md ("Phase 4" section).
+
+Scope, read this first:
+- Single-machine dev/demo topology: one Electron install spawns both apps/api and apps/web as
+  local child processes. Multi-terminal LAN deployment (a satellite terminal pointing at a
+  separate head-office machine) is a documented env-var knob (ONEPOS_API_PORT/ONEPOS_WEB_PORT
+  assume localhost today), not built/tested — that's Phase 7 territory.
+- Offline covers the sale-creation write path only, not catalog reads. Barcode scanning and
+  cart-building already worked offline before this phase (the product list is already in the
+  React Query cache after first load) — only the checkout POST needed a fallback.
+- Offline discount overrides above `maxCashierDiscountPercent` are refused client-side before
+  queuing (no server round-trip is possible offline to react to the "manager approval required"
+  rejection the online flow depends on). Reduce the discount or reconnect.
+- No electron-builder packaging/installer — `apps/desktop`'s `dev` script builds and runs the
+  shell directly, no signed installer yet.
+
+One-time setup for apps/desktop:
+- `better-sqlite3` is a native Node module and must be compiled against Electron's bundled Node
+  ABI, not your system Node — this requires a C++ build toolchain (Visual Studio "Desktop
+  development with C++" workload on Windows, Xcode Command Line Tools on macOS,
+  build-essential on Linux). Root `npm install` does NOT attempt this automatically (a prior
+  attempt to wire it as an automatic `postinstall` broke `npm install` on any machine without
+  the toolchain — including this repo's own dev sandbox, which lacks one). After installing
+  dependencies, run once, from apps/desktop:
+    npm run rebuild
+  (wraps `electron-rebuild -f -w better-sqlite3`). Re-run it any time you bump the `electron`
+  or `better-sqlite3` version.
+
+How to run it:
+1. `docker start onepos-mongo`, `npm run build` (root — builds shared-types, api, web).
+2. `cd apps/desktop && npm run rebuild` (first time only, see above).
+3. `cd apps/desktop && npm run dev` — spawns `apps/api` (`node dist/main.js`) and `apps/web`
+   (`npm run start`) as child processes, polls both for health, then opens a window loading
+   http://localhost:3000. Log in and open a shift exactly as in phase1-3.txt.
+
+Simulating offline, end to end:
+1. With the Electron window open and a shift open, find and kill the `apps/api` child process
+   (Task Manager, or whatever's listening on :3001) — the window stays open, still backed by
+   the Next.js server, but calls to the API now fail at the network layer.
+2. Ring up a sale and pay. Instead of an error, you get "No connection — sale queued and will
+   sync automatically," the cart clears, and a "N pending sync" badge appears next to the shift
+   badge on the POS header.
+3. Restart `apps/api` (`cd apps/api && npm run start:dev`). Within ~15 seconds (the sync
+   worker's poll interval) the pending badge clears and the sale appears in Sales with a real
+   `orderNo` — it didn't have one while queued.
+4. Stockout case: while still offline, reduce a product's stock via a completed sale that uses
+   up all remaining qtyOnHand, then queue an offline sale for the same product. On reconnect it
+   still syncs (status `flagged`, not `failed`) — the sale shows a "Needs review" badge on its
+   detail page and in the Sales list, with `reviewReason` explaining why. `qtyOnHand` is allowed
+   to go negative in this one case rather than dropping the sale.
+5. Discount-cap case: while offline, add a line discount clearly over `maxCashierDiscountPercent`
+   and try to check out — rejected immediately client-side with a toast, never reaches the
+   outbox (unlike the online flow, there's no manager-PIN retry available offline).
+
+Known gaps / deliberately deferred:
+- No offline catalog delta-sync (`GET /sync/pull` is just a clock-sync heartbeat, `{serverTime}`
+  — no products/categories/inventory deltas). Fine for this app's scale per
+  docs/05-offline-sync-and-backup.md, but if a product is created *after* a terminal goes
+  offline, that terminal can't sell it until back online and the catalog is refetched.
+  - A `'failed'` sync result (e.g. the shift closed on another terminal before sync ran, or
+    a since-deleted product) leaves the event in the local outbox marked `error` — no auto-retry
+    (it would fail identically forever) and no in-app UI to inspect/resolve it yet. It's visible
+    only as a "sync errors" count on the POS header; recovering it today means manually
+    inspecting `outbox.sqlite3` (in Electron's userData dir) or re-ringing the sale. Phase 6
+    admin-dashboard territory.
+- `apps/desktop`'s window only ever points at `localhost` — no settings UI to point a satellite
+  terminal at a different machine's IP.
+
+Gotchas hit during this phase (read before repeating this pattern):
+1. **better-sqlite3 as an automatic `postinstall` broke `npm install` everywhere without a C++
+   toolchain**, including this repo's own dev sandbox (no Visual Studio Build Tools). Root
+   `npm install` must work unconditionally across all workspaces (CI, this sandbox, everyone's
+   laptop) even before anyone touches `apps/desktop` — a native-module rebuild step that only
+   matters for one workspace has no business gating everyone else's install. Moved to a manual
+   `npm run rebuild` script in `apps/desktop/package.json` instead. If you add another native
+   dependency anywhere in this monorepo, do the same — never wire its build step into a script
+   that runs for the whole tree.
+2. **The Electron main process can reuse the renderer's existing login instead of a second auth
+   flow.** `apps/web`'s BFF pattern already stores the JWT in an httpOnly `onepos_session` cookie
+   (`apps/web/src/lib/session.ts`, JSON-stringified `{accessToken, user}`) inside whatever
+   Chromium session renders the page. Since Electron's `BrowserWindow` uses that same session,
+   the main process's sync worker reads it directly via
+   `session.defaultSession.cookies.get({name: 'onepos_session'})`, URL-decodes and JSON-parses
+   it, and uses `accessToken` as the `Authorization: Bearer` header calling NestJS's `/api/sync/*`
+   directly (bypassing the Next.js `/api/proxy/*` route — the main process isn't a browser page,
+   so none of the same-origin/cookie reasoning that route exists for applies to it). This means
+   replayed sales are correctly attributed to whichever cashier was actually logged in when the
+   sale happened, with no extra plumbing.
+3. **`SalesService.create()`'s existing idempotency check (`findOne({idempotencyKey})` → return
+   the existing doc) doesn't distinguish "duplicate" from "just-created" for the sync API's
+   purposes.** Added a dedicated `SalesService.findByIdempotencyKey()` and check it explicitly
+   in `SyncService.pushEvents()` *before* calling `create()`, rather than trying to infer
+   duplicate-vs-new from `create()`'s return value.
+4. **A forced-through stockout during sync replay reuses `decrementStockAtomic(..., 'allow_backorder')`
+   verbatim** — no new inventory method needed. `SalesService.create()`'s new
+   `options.allowStockForceThrough` flag just catches the `ConflictException` a `'block'`-policy
+   decrement throws and retries the same call with `'allow_backorder'` instead, which was
+   already an unconditional `$inc` used for the `warn`/`allow_backorder` settings policies.
+
+Verification commands (all pass clean as of this writeup):
+cd "D:/SELife/hardcore-projects/POS/OnePOS"
+npm run build
+npm run typecheck
+npm run lint
+npm run test
+(adds apps/api/src/modules/sync/sync.service.spec.ts — a real in-memory-MongoDB test proving:
+replaying the same idempotencyKey twice yields 'applied' then 'duplicate' and only one Sale
+document; replaying an event whose qty exceeds current stock forces the decrement through,
+returns 'flagged', sets `needsManagerReview: true`, and leaves `qtyOnHand` negative; replaying
+against a shiftId that doesn't match returns 'failed' with no Sale created.)
+
+Not verified in this environment: the actual Electron window (native better-sqlite3 module
+can't be rebuilt here — no C++ toolchain, see gotcha #1) and the live offline/reconnect walkthrough
+above. Both need to be run on a machine with a real build toolchain before calling this phase
+fully exercised, not just unit-tested.

@@ -305,11 +305,79 @@ See `docs/dev-playbook/phase3.txt` for the full walkthrough, test users, and how
 manager PIN (neither seeded user has one by default, needed to fully exercise discount
 override / void / paid-out-cash-movement).
 
-## Phase 4 — Offline-first: NOT STARTED
+## Phase 4 — Centralized deployment (browser terminals): DONE
 
-Electron shell (currently just a placeholder in `apps/desktop`) wraps the Next.js+NestJS
-processes for real; SQLite outbox; background sync worker; event-sourced sale replay. See
-[`05-offline-sync-and-backup.md`](./05-offline-sync-and-backup.md).
+Ships the primary deployment topology (see
+[`01-architecture-overview.md`](./01-architecture-overview.md)): one central machine runs MongoDB
++ `apps/api` + `apps/web` together; terminals are plain browser tabs pointed at that machine's LAN
+address, nothing installed per terminal. This phase was inserted ahead of the originally-numbered
+Phase 4 ("Offline-first," below, now Phase 7 — see [`08-roadmap.md`](./08-roadmap.md)'s sequencing
+rationale for why). See [`04-configuration.md`](./04-configuration.md) for the full operator
+walkthrough.
+
+### What's built
+
+- `apps/web/src/lib/session.ts`: `setSessionCookie()`'s `secure` flag decoupled from `NODE_ENV`,
+  now a dedicated `COOKIE_SECURE` env var (default `false`). Fixes a real bug for this deployment
+  shape — a no-TLS shop-LAN deployment run with `NODE_ENV=production` would otherwise have
+  `secure: true` silently make the browser discard the session cookie, bouncing every login back
+  to `/login`.
+- `apps/web/src/lib/api/base-url.ts`: new `getApiBaseUrl()` helper, single source of truth for the
+  API base URL. Previously the same `"http://localhost:3001/api"` fallback literal was duplicated
+  independently in six files (`api/auth/login/route.ts`, `api/auth/setup/route.ts`,
+  `api/proxy/[...path]/route.ts`, `lib/api/server.ts`, `lib/setup-status.ts`, `lib/settings.ts`) —
+  all six now import the shared helper instead, removing a real drift risk now that this value
+  matters for actual deployments, not just local dev.
+- `apps/api/Dockerfile`, `apps/web/Dockerfile`: multi-stage builds, repo root as build context
+  (required for npm workspaces — `@onepos/shared-types` must be resolvable), each running
+  `npx turbo run build --filter=<pkg>` after an `npm ci` deps stage. `apps/web`'s image relies on
+  `next.config.ts`'s pre-existing `output: "standalone"` + `outputFileTracingRoot` (already set up
+  for monorepo module resolution, not new this phase). Neither image is size-optimized (ships full
+  `node_modules` including devDependencies) — acceptable at this project's scale, same rationale as
+  the existing Turborepo-over-Nx call in `01-architecture-overview.md`.
+- `docker-compose.yml` (repo root): three services — `mongo` (named volume), `api` (depends on
+  mongo), `web` (depends on api, reaches it over the compose network at `http://api:3001/api`,
+  never exposed to the browser — that fetch is server-side only, see `base-url.ts`'s callers).
+  Root `.env.example` documents the two required vars (`JWT_SECRET`, `WEB_ORIGIN`).
+- `.dockerignore` (repo root): keeps `node_modules`/`dist`/`.next`/etc. out of the build context.
+
+### Gotchas hit during implementation (read before repeating this pattern)
+
+1. **`NEXT_PUBLIC_*`-prefixed env vars get inlined at Next.js *build* time even in server-only
+   code**, regardless of whether the surrounding module ever reaches the browser bundle. The API
+   base URL was originally named `NEXT_PUBLIC_API_BASE_URL`, and every call site is server-only
+   (Route Handlers / Server Components — see `base-url.ts`'s callers), but Next's bundler still
+   performs the substitution via blind static analysis, not real client/server graph awareness.
+   Caught by grepping the compiled `.next/server` output after a Docker build, where
+   `getApiBaseUrl()` had been collapsed to an unconditional `return "http://localhost:3001/api"`
+   — the var wasn't set during `docker build` (only later, at `docker compose up`, per
+   `docker-compose.yml`), so the build baked in just the fallback literal, and setting the var at
+   container-start had **no effect at all**. Concretely: the `web` container kept calling
+   `localhost:3001` internally (nothing listens there in that container), `getSetupStatus()`'s
+   catch-and-fail-closed swallowed the resulting fetch error, and `/login` never redirected to
+   `/setup` on a fresh database — first-run setup was silently unreachable. Fixed by renaming the
+   var to plain `API_BASE_URL` everywhere (`base-url.ts`, both `.env.example` files,
+   `docker-compose.yml`, and `apps/desktop/src/main.ts`'s child-process spawn env, which had the
+   identical latent bug — it just never surfaced there because dev builds happened to bake in the
+   same `localhost:3001` value the single-machine demo topology also used at runtime, by
+   coincidence). **Rule of thumb going forward**: never use the `NEXT_PUBLIC_` prefix for a var
+   that isn't genuinely meant to reach client-side JS, even inside a file that happens to run
+   server-side today.
+
+### How to exercise Phase 4 locally
+
+`npm run build|typecheck|lint` pass clean across every workspace with these changes. Verified live
+in this environment (Docker is available here): `cp .env.example .env` (set `JWT_SECRET`), then
+`docker compose up -d --build` brought up all three services; `GET /login` correctly 307-redirected
+to `/setup` on the fresh database, `POST /api/auth/setup` created the admin and returned a
+`Set-Cookie: onepos_session=...; HttpOnly; SameSite=lax` header **without** a `Secure` attribute
+despite the container running with `NODE_ENV=production` (proves the `COOKIE_SECURE` fix works,
+decoupled from `NODE_ENV`), and a follow-up authenticated request through `/api/proxy/settings`
+using that cookie reached the real NestJS backend and returned the just-created settings document.
+Not yet exercised: a genuine second physical/virtual machine on a LAN (this was one Docker host
+acting as both "server" and "terminal" via `localhost`) — the only thing that changes for a real
+second terminal is which IP `WEB_ORIGIN`/the browser use, already covered by
+`04-configuration.md`'s walkthrough.
 
 ## Phase 5 — Full printing: NOT STARTED
 
@@ -322,7 +390,134 @@ invoices — all inside a print-agent in the Electron main process. See
 User/role management UI, branding/tax/printer settings UI, audit log viewer, supplier/PO/GRN
 workflow UI, sales-summary dashboards. See [`07-admin-dashboards-ux.md`](./07-admin-dashboards-ux.md).
 
-## Phase 7 — Hardening & launch readiness: NOT STARTED
+## Phase 7 — Offline-first (Electron): DONE, topology rework pending
+
+**This section is unmodified history** — see [`08-roadmap.md`](./08-roadmap.md) for why this work,
+originally built and numbered as "Phase 4," now sits at Phase 7 in the roadmap, after the
+centralized-deployment phase above. The single-machine topology described in the scope note right
+below is exactly what's scheduled to be reworked when this phase comes up for real: the Electron
+main process needs to stop spawning its own local `apps/api` + embedded MongoDB and instead point
+at the central server built in Phase 4, per `01-architecture-overview.md`'s topology diagram.
+
+A prior session had committed only the shared-types contract for this phase
+(`SyncPushRequestDto`/`SyncPushResultDto`/`SyncEventDto`, `needsManagerReview`/`reviewReason` on
+`SaleDto`) before crashing; everything below completes it. See
+[`05-offline-sync-and-backup.md`](./05-offline-sync-and-backup.md) for the design this follows,
+and `docs/dev-playbook/phase4.txt` for the full walkthrough and gotchas.
+
+**Scope, deliberately**: single-machine dev/demo topology (one Electron install spawns both
+`apps/web` and `apps/api` as local child processes — multi-terminal LAN deployment is a
+documented env-var knob, not built); offline covers the sale-creation write path only, not
+catalog reads (barcode scan/cart-build already worked offline via the existing React Query
+cache — no delta-sync contract exists or was added for products/inventory); offline discount
+overrides above the cashier cap are refused client-side before queuing rather than supported
+(no server round-trip is possible offline to react to the "manager approval required"
+rejection the online flow depends on). No `electron-builder` packaging — that's Phase 8.
+
+### What's built (backend)
+
+- `packages/shared-types/src/sync.ts`: added a `'failed'` status to
+  `SYNC_EVENT_RESULT_STATUSES` (alongside the already-committed `'applied'/'duplicate'/'flagged'`)
+  — a genuine business-rule rejection (e.g. a shift closed on another terminal before sync ran)
+  can't be represented by the other three without misrepresenting it as success. Also added a
+  shared `SyncStatus` interface, used by both `apps/desktop`'s sync worker and the web POS's
+  pending-sync badge.
+- `packages/shared-types/src/settings.ts`: `maxCashierDiscountPercent` added to
+  `publicSettingsSchema` (same precedent as Phase 2's `defaultTaxRatePercent`) so the offline
+  checkout path can advise the cashier client-side before queuing a sale that's guaranteed to
+  fail replay.
+- `modules/sales/schemas/sale.schema.ts`: added the `needsManagerReview`/`reviewReason` props
+  that the crashed session had added to `SaleDto` but never to the actual Mongoose schema —
+  they'd have silently never persisted.
+- `modules/sales/sales.service.ts`: `create()` gained an optional 4th param
+  `options?: { allowStockForceThrough?: boolean }`. When set and a `'block'`-policy
+  `decrementStockAtomic` throws `ConflictException`, it retries with `'allow_backorder'`
+  (already an unconditional `$inc`, no new inventory method needed) and marks the created sale
+  `needsManagerReview`. Also added `findByIdempotencyKey()`, used by the sync module to
+  distinguish "already applied" from "just created" before calling `create()`.
+- New `modules/sync/` (module/service/controller, shaped like `shifts/`): `POST /sync/push`
+  replays a batch of queued `SyncEventDto`s sequentially (not `Promise.all` — keeps per-product
+  stock ordering deterministic, and reuses `SalesService.create()` unchanged for the actual
+  business logic) and returns one `SyncPushResultDto` per event; `GET /sync/pull` returns
+  `{serverTime}` — a clock-sync heartbeat only, no catalog delta sync. Both guarded the same way
+  as every other controller (`JwtAuthGuard` + `CaslAbilityGuard`), reusing the existing `SALE`
+  CASL subject rather than adding a new one.
+- `modules/sync/sync.service.spec.ts`: real in-memory-MongoDB test (same pattern as
+  `inventory.concurrency.spec.ts`) proving duplicate-idempotencyKey replay, forced-through
+  stockout → `flagged` + negative `qtyOnHand`, and a shift mismatch → `failed` with no sale
+  created.
+
+### What's built (desktop, `apps/desktop`)
+
+Replaces the Phase 1 placeholder `main.ts` entirely:
+
+- `src/outbox.ts` — `better-sqlite3`-backed local write-ahead store (`outbox.sqlite3` in
+  Electron's `userData` dir), one `outbox` table keyed by `client_event_id` (so a duplicate
+  `enqueue()` is a no-op). `enqueue`/`listPending`/`markError`/`remove`/`countPending`/`countErrored`.
+- `src/sync-worker.ts` — a 15s interval loop: health-checks `GET /api/settings/public`, and if
+  reachable with pending rows, reads the `onepos_session` cookie straight out of the same
+  Electron session the renderer's login already populated (BFF pattern, see gotcha below),
+  `POST`s `/api/sync/push` directly against NestJS (bypassing the Next.js proxy — the main
+  process isn't a browser page), and per-result either removes the row (`applied`/`duplicate`/
+  `flagged`) or marks it `error` (`failed` — won't be retried, it'll fail identically forever).
+  Broadcasts `SyncStatus` to the renderer after every tick.
+- `src/preload.ts` — `contextBridge`-exposed `window.onepos = {queueSale, getSyncStatus,
+  onSyncStatusChange}`, the only surface the renderer gets into the main process.
+- `src/main.ts` — spawns `apps/api` (`node dist/main.js`) and `apps/web` (`npm run start`) as
+  child processes, polls both for health, opens a `BrowserWindow` loading the web app, wires the
+  `ipcMain` handlers, starts the sync worker, and kills both children on quit.
+- `better-sqlite3` is a native module and needs `apps/desktop`'s own `npm run rebuild`
+  (`electron-rebuild -f -w better-sqlite3`) run once manually — **deliberately not** an automatic
+  `postinstall` (see gotcha below).
+
+### What's built (web, `apps/web`)
+
+- `lib/offline/electron-bridge.ts` — `isElectron()` guard, `Window.onepos` type declaration, and
+  `isNetworkFailure(err)` (`err instanceof TypeError` — the native `fetch()` rejection shape,
+  as opposed to `ApiError` which `apiFetch` throws for a resolved-but-not-`ok` response).
+- `lib/offline/use-sync-status.ts` — subscribes to `window.onepos.onSyncStatusChange`; no-ops
+  (`{online: true, pendingCount: 0, erroredCount: 0}`) outside Electron, safe to render
+  unconditionally (the plain-browser-tab fallback path is unaffected).
+- `(app)/pos/checkout-dialog.tsx` — `submitSale`'s catch path now checks
+  `isNetworkFailure(error) && isElectron()` before falling through to the existing
+  manager-approval-retry handling: if any line's discount exceeds the now-public
+  `maxCashierDiscountPercent`, refuses to queue with a toast; otherwise calls
+  `window.onepos.queueSale(...)` (same `idempotencyKey` as the DTO, so a later duplicate replay
+  is a no-op) and calls the new `onQueuedOffline` prop instead of `onSuccess`.
+- `(app)/pos/page.tsx` — `handleQueuedOffline` mirrors `handleSaleSuccess`'s cart-clear/parked-
+  cleanup/idempotency-key-rotation but stays on `/pos` (no server sale id exists yet to navigate
+  to) with a toast instead; a "N pending sync"/"N sync errors" badge renders next to the shift
+  badge via `useSyncStatus()`.
+- `(app)/sales/` list and detail pages: a "Needs review" badge (plus `reviewReason` text on the
+  detail page) when `needsManagerReview` is true — otherwise a flagged sale would be completely
+  invisible. No dedicated review/dismiss workflow — that's Phase 6 admin territory.
+
+### Gotchas hit during implementation (read before repeating this pattern)
+
+See `docs/dev-playbook/phase4.txt` for the full list, including:
+
+1. Wiring `better-sqlite3`'s Electron-ABI rebuild as an automatic `postinstall` broke root
+   `npm install` on any machine without a C++ build toolchain — including this repo's own dev
+   sandbox. Moved to a manual `npm run rebuild` script in `apps/desktop` instead; a native
+   dependency's build step should never gate the whole monorepo's install.
+2. The Electron main process doesn't need a second auth flow — it reads the renderer's existing
+   `onepos_session` httpOnly cookie (JSON-stringified `{accessToken, user}`, URL-encoded by the
+   `cookie` package under the hood) straight out of `session.defaultSession.cookies`, since the
+   `BrowserWindow` shares that Chromium session with the page that logged in.
+3. `SalesService.create()`'s pre-existing idempotency dedup (return the existing doc if found)
+   doesn't tell the caller whether it found-vs-created — the sync module needed a dedicated
+   `findByIdempotencyKey()` check *before* calling `create()` to report `'duplicate'` accurately.
+
+### How to exercise Phase 7 (Offline-first) locally
+
+See `docs/dev-playbook/phase4.txt` for the full walkthrough (build, one-time `electron-rebuild`
+step, and the offline/reconnect/stockout/discount-cap scenarios). Not independently verified in
+this environment: the actual Electron window and live offline walkthrough — `better-sqlite3`
+can't be rebuilt here (no C++ toolchain). Backend behavior is covered by
+`sync.service.spec.ts`; `npm run build|typecheck|lint|test` all pass clean across every
+workspace including `apps/desktop`.
+
+## Phase 8 — Hardening & launch readiness: NOT STARTED
 
 Backup/restore drill, concurrency load test, security review, Electron auto-update/code-signing,
 UAT with real cashiers.

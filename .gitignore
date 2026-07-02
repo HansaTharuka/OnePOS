@@ -16,3 +16,5 @@ coverage/
 release/
 apps/desktop/dist/
 apps/desktop/out/
+apps/desktop/vendor/
+apps/desktop/staging/
